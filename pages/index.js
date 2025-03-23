@@ -314,8 +314,7 @@ export default function Home() {
   // Handle view mode changes
   const handleViewModeChange = (mode) => {
     if (mode === 'comparison' && cities.length === 0) {
-      // Don't switch to comparison if no cities
-      return;
+      return; // Don't switch to comparison if no cities
     }
     setViewMode(mode);
     localStorage.setItem('viewMode', mode);
@@ -326,6 +325,8 @@ export default function Home() {
     const savedViewMode = localStorage.getItem('viewMode');
     if (savedViewMode && (savedViewMode === 'cards' || (savedViewMode === 'comparison' && cities.length > 0))) {
       setViewMode(savedViewMode);
+    } else {
+      setViewMode('cards'); // Default to cards view
     }
   }, []);
 
