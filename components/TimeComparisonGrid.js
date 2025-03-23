@@ -27,31 +27,32 @@ export default function TimeComparisonGrid({ cities, onRemove }) {
     cityRefs.current = Array(cities.length).fill().map((_, i) => cityRefs.current[i] || createRef());
   }, [cities.length]);
   
-  // Update time every minute and recenter the timeline
+  // Initialize the grid on mount
   useEffect(() => {
-    const updateTime = () => {
+    if (cities.length > 0) {
+      centerTimelineOnCurrentHour();
+    }
+  }, []);
+
+  // Update time every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
       const now = dayjs();
       setCurrentHour(now.hour());
-      
       if (cities.length > 0 && alignmentHourOffset === 0) {
         centerTimelineOnCurrentHour();
       }
-    };
-    
-    // Initial update
-    updateTime();
-    
-    const timer = setInterval(updateTime, 60000);
-    
+    }, 60000);
+
     return () => clearInterval(timer);
   }, [cities.length, alignmentHourOffset]);
 
-  // Center the timeline when cities change or when resetting alignment
+  // Center timeline when cities change
   useEffect(() => {
-    if (cities.length > 0 && alignmentHourOffset === 0) {
+    if (cities.length > 0) {
       centerTimelineOnCurrentHour();
     }
-  }, [cities, alignmentHourOffset]);
+  }, [cities]);
 
   // Function to center the timeline on the current hour
   const centerTimelineOnCurrentHour = () => {
@@ -63,76 +64,58 @@ export default function TimeComparisonGrid({ cities, onRemove }) {
       // Calculate the visible hours start to center the current hour
       // We want to show 17 hours (8 before, current, and 8 after)
       setVisibleHoursStart((currentHour - 8 + 24) % 24);
+      setAlignmentHourOffset(0);
     }
   };
 
-  // Handle mouse/touch events for timeline dragging
-  const handleTimelineDragStart = (e) => {
-    // Support both mouse and touch events
+  // Platform-agnostic event handlers
+  const handlePointerDown = (e) => {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    
     e.preventDefault();
     setIsDraggingAlignment(true);
     setStartDragX(clientX);
     setDragDelta(0);
-    
-    // Add grabbing cursor to document body
     document.body.style.cursor = 'grabbing';
-    
-    // Add event listeners for mouse/touch move and up/end events
+
     if (e.touches) {
-      document.addEventListener('touchmove', handleTimelineDragMove, { passive: false });
-      document.addEventListener('touchend', handleTimelineDragEnd);
+      document.addEventListener('touchmove', handlePointerMove, { passive: false });
+      document.addEventListener('touchend', handlePointerUp);
     } else {
-      document.addEventListener('mousemove', handleTimelineDragMove);
-      document.addEventListener('mouseup', handleTimelineDragEnd);
+      document.addEventListener('mousemove', handlePointerMove);
+      document.addEventListener('mouseup', handlePointerUp);
     }
   };
-  
-  const handleTimelineDragMove = (e) => {
-    if (!isDraggingAlignment) return;
 
-    // Support both mouse and touch events
+  const handlePointerMove = (e) => {
+    if (!isDraggingAlignment) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    
-    // Prevent default to avoid page scrolling on mobile
-    if (e.preventDefault) e.preventDefault();
-    
-    // Calculate the difference in pixels
+    e.preventDefault?.();
+
     const diffX = clientX - startDragX;
-    
-    // Update the drag delta for visual feedback
     setDragDelta(diffX);
-    
-    // 60px per hour, so calculate how many hours to shift
+
     const hourDiff = Math.round(diffX / 60);
-    
     if (hourDiff !== 0) {
-      // Update the offset for alignment and visible hours
-      setAlignmentHourOffset(prevOffset => prevOffset - hourDiff);
-      setVisibleHoursStart(prevStart => (prevStart + hourDiff + 24) % 24);
-      
-      // Reset start position for the next move
+      setAlignmentHourOffset(prev => prev - hourDiff);
+      setVisibleHoursStart(prev => (prev + hourDiff + 24) % 24);
       setStartDragX(clientX);
       setDragDelta(0);
     }
   };
-  
-  const handleTimelineDragEnd = (e) => {
+
+  const handlePointerUp = () => {
     setIsDraggingAlignment(false);
     setDragDelta(0);
     document.body.style.cursor = 'default';
-    
-    // After dragging ends, recenter the timeline
+
+    document.removeEventListener('mousemove', handlePointerMove);
+    document.removeEventListener('mouseup', handlePointerUp);
+    document.removeEventListener('touchmove', handlePointerMove);
+    document.removeEventListener('touchend', handlePointerUp);
+
     if (alignmentHourOffset === 0) {
       centerTimelineOnCurrentHour();
     }
-    
-    // Remove event listeners for both mouse and touch events
-    document.removeEventListener('mousemove', handleTimelineDragMove);
-    document.removeEventListener('mouseup', handleTimelineDragEnd);
-    document.removeEventListener('touchmove', handleTimelineDragMove);
-    document.removeEventListener('touchend', handleTimelineDragEnd);
   };
 
   // Handle timeline hover events
@@ -505,11 +488,11 @@ export default function TimeComparisonGrid({ cities, onRemove }) {
                   {/* Timeline Content */}
                   <div 
                     className="flex-1 overflow-x-auto flex items-center px-12 cursor-grab active:cursor-grabbing"
-                    onMouseDown={handleTimelineDragStart}
-                    onMouseMove={handleTimelineDragMove}
-                    onMouseUp={handleTimelineDragEnd}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
                     onMouseLeave={(e) => {
-                      handleTimelineDragEnd(e);
+                      handlePointerUp();
                       handleTimelineMouseLeave(e);
                     }}
                     onMouseEnter={handleTimelineMouseEnter}

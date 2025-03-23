@@ -311,25 +311,31 @@ export default function Home() {
   const [availableTimezones, setAvailableTimezones] = useState([]);
   const [viewMode, setViewMode] = useState('cards');
   
-  // Persist viewMode in localStorage
+  // Handle view mode changes
+  const handleViewModeChange = (mode) => {
+    if (mode === 'comparison' && cities.length === 0) {
+      // Don't switch to comparison if no cities
+      return;
+    }
+    setViewMode(mode);
+    localStorage.setItem('viewMode', mode);
+  };
+
+  // Load saved view mode on mount
   useEffect(() => {
     const savedViewMode = localStorage.getItem('viewMode');
-    if (savedViewMode) {
+    if (savedViewMode && (savedViewMode === 'cards' || (savedViewMode === 'comparison' && cities.length > 0))) {
       setViewMode(savedViewMode);
     }
   }, []);
 
-  // Update localStorage when viewMode changes
+  // Reset to cards view when all cities are removed
   useEffect(() => {
-    localStorage.setItem('viewMode', viewMode);
-  }, [viewMode]);
-  
-  // Reset to cards view when no cities
-  useEffect(() => {
-    if (cities.length === 0) {
+    if (cities.length === 0 && viewMode === 'comparison') {
       setViewMode('cards');
+      localStorage.setItem('viewMode', 'cards');
     }
-  }, [cities]);
+  }, [cities.length]);
   
   // Load available timezones on initial load
   useEffect(() => {
@@ -429,9 +435,7 @@ export default function Home() {
     if (!city || !city.timezone) return null;
     
     const handleCardClick = () => {
-      if (cities.length > 0) {
-        setViewMode('comparison');
-      }
+      handleViewModeChange('comparison');
     };
     
     const handleRemoveClick = (e) => {
@@ -610,10 +614,13 @@ export default function Home() {
             <div className="inline-flex rounded-lg shadow-sm" role="group">
               <button
                 type="button"
-                onClick={() => setViewMode('comparison')}
+                onClick={() => handleViewModeChange('comparison')}
+                disabled={cities.length === 0}
                 className={`px-6 py-3 text-sm font-medium rounded-l-lg border transition-all duration-200 ${
-                  viewMode === 'comparison' 
+                  viewMode === 'comparison'
                     ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : cities.length === 0
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
                 }`}
               >
@@ -621,9 +628,9 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('cards')}
+                onClick={() => handleViewModeChange('cards')}
                 className={`px-6 py-3 text-sm font-medium rounded-r-lg border transition-all duration-200 ${
-                  viewMode === 'cards' 
+                  viewMode === 'cards'
                     ? 'bg-blue-600 text-white border-blue-600 shadow-md'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
                 }`}
@@ -634,12 +641,12 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Time Display / Weather Overview (Toggle between them) */}
+        {/* Time Display / Weather Overview */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">
             {viewMode === 'comparison' ? 'Time Comparison' : 'Weather Overview'}
           </h2>
-          {viewMode === 'comparison' ? (
+          {viewMode === 'comparison' && cities.length > 0 ? (
             <TimeComparisonGrid 
               cities={cities} 
               onRemove={removeCity}
