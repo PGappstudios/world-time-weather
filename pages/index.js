@@ -391,13 +391,16 @@ export default function Home() {
     setLoadingCities(prev => new Set([...prev, cityName]));
     
     try {
-      // Fetch timezone and weather data in parallel
-      const [timezoneData, weatherData] = await Promise.all([
-        getTimezoneData(cityName),
-        getWeather(timezoneData?.latitude || 0, timezoneData?.longitude || 0).catch(() => null)
-      ]);
+      // First get timezone data
+      const timezoneData = await getTimezoneData(cityName);
       
-      // Add the new city to the list immediately
+      // Then get weather data
+      const weatherData = await getWeather(
+        timezoneData.latitude,
+        timezoneData.longitude
+      ).catch(() => null);
+      
+      // Add the new city to the list
       setCities(prev => [
         ...prev, 
         { 
@@ -407,7 +410,7 @@ export default function Home() {
         }
       ]);
       
-      // Save to localStorage immediately
+      // Save to localStorage
       const updatedCities = [...cities, { name: cityName, timezone: timezoneData, weather: weatherData }];
       localStorage.setItem('cities', JSON.stringify(updatedCities));
       
@@ -429,13 +432,17 @@ export default function Home() {
       const savedCities = JSON.parse(localStorage.getItem('cities') || '[]');
       if (savedCities.length === 0) return;
       
-      // Load all cities in parallel
+      // Load all cities in parallel with proper error handling
       const cityPromises = savedCities.map(async (city) => {
         try {
-          const [timezoneData, weatherData] = await Promise.all([
-            getTimezoneData(city.name),
-            getWeather(city.timezone?.latitude || 0, city.timezone?.longitude || 0).catch(() => null)
-          ]);
+          // First get timezone data
+          const timezoneData = await getTimezoneData(city.name);
+          
+          // Then get weather data
+          const weatherData = await getWeather(
+            timezoneData.latitude,
+            timezoneData.longitude
+          ).catch(() => null);
           
           return {
             name: city.name,
