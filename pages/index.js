@@ -400,19 +400,20 @@ export default function Home() {
         timezoneData.longitude
       ).catch(() => null);
       
-      // Add the new city to the list
-      setCities(prev => [
-        ...prev, 
-        { 
-          name: cityName,
-          timezone: timezoneData,
-          weather: weatherData
-        }
-      ]);
+      // Create the new city object
+      const newCity = {
+        name: cityName,
+        timezone: timezoneData,
+        weather: weatherData
+      };
       
-      // Save to localStorage
-      const updatedCities = [...cities, { name: cityName, timezone: timezoneData, weather: weatherData }];
-      localStorage.setItem('cities', JSON.stringify(updatedCities));
+      // Update cities state and localStorage atomically
+      setCities(prevCities => {
+        const updatedCities = [...prevCities, newCity];
+        // Save to localStorage inside the state update to ensure consistency
+        localStorage.setItem('cities', JSON.stringify(updatedCities));
+        return updatedCities;
+      });
       
     } catch (err) {
       console.error("Failed to add city:", err);
@@ -429,34 +430,47 @@ export default function Home() {
   // Load saved cities on mount with optimized loading
   useEffect(() => {
     const loadSavedCities = async () => {
-      const savedCities = JSON.parse(localStorage.getItem('cities') || '[]');
-      if (savedCities.length === 0) return;
-      
-      // Load all cities in parallel with proper error handling
-      const cityPromises = savedCities.map(async (city) => {
-        try {
-          // First get timezone data
-          const timezoneData = await getTimezoneData(city.name);
-          
-          // Then get weather data
-          const weatherData = await getWeather(
-            timezoneData.latitude,
-            timezoneData.longitude
-          ).catch(() => null);
-          
-          return {
-            name: city.name,
-            timezone: timezoneData,
-            weather: weatherData
-          };
-        } catch (error) {
-          console.error(`Failed to load city ${city.name}:`, error);
-          return null;
-        }
-      });
-      
-      const loadedCities = await Promise.all(cityPromises);
-      setCities(loadedCities.filter(Boolean));
+      try {
+        const savedCities = JSON.parse(localStorage.getItem('cities') || '[]');
+        if (savedCities.length === 0) return;
+        
+        setLoading(true);
+        
+        // Load all cities in parallel with proper error handling
+        const cityPromises = savedCities.map(async (city) => {
+          try {
+            // First get timezone data
+            const timezoneData = await getTimezoneData(city.name);
+            
+            // Then get weather data
+            const weatherData = await getWeather(
+              timezoneData.latitude,
+              timezoneData.longitude
+            ).catch(() => null);
+            
+            return {
+              name: city.name,
+              timezone: timezoneData,
+              weather: weatherData
+            };
+          } catch (error) {
+            console.error(`Failed to load city ${city.name}:`, error);
+            return null;
+          }
+        });
+        
+        const loadedCities = (await Promise.all(cityPromises)).filter(Boolean);
+        
+        // Update state and localStorage together
+        setCities(loadedCities);
+        localStorage.setItem('cities', JSON.stringify(loadedCities));
+        
+      } catch (error) {
+        console.error('Failed to load saved cities:', error);
+        setError('Failed to load saved cities. Please try refreshing the page.');
+      } finally {
+        setLoading(false);
+      }
     };
     
     loadSavedCities();
@@ -464,14 +478,22 @@ export default function Home() {
   
   // Function to remove a city from the list
   function removeCity(index, newCities) {
-    // Special case for reordering: if newCities array is provided, use it to replace current cities
-    if (newCities) {
-      setCities(newCities);
-      return;
-    }
-    
-    // Standard case: remove the city at the given index
-    setCities(prev => prev.filter((_, i) => i !== index));
+    // Update cities state and localStorage atomically
+    setCities(prevCities => {
+      let updatedCities;
+      
+      if (newCities) {
+        // For reordering: use provided cities array
+        updatedCities = newCities;
+      } else {
+        // For removal: filter out the city at the given index
+        updatedCities = prevCities.filter((_, i) => i !== index);
+      }
+      
+      // Save to localStorage inside the state update
+      localStorage.setItem('cities', JSON.stringify(updatedCities));
+      return updatedCities;
+    });
   }
   
   // Function to render compact city cards with time and weather
