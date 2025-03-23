@@ -309,9 +309,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [availableTimezones, setAvailableTimezones] = useState([]);
-  const [viewMode, setViewMode] = useState('cards'); // Start with cards view
+  const [viewMode, setViewMode] = useState('cards');
   
-  // Add a useEffect to persist viewMode changes
+  // Persist viewMode in localStorage
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('viewMode');
+    if (savedViewMode) {
+      setViewMode(savedViewMode);
+    }
+  }, []);
+
+  // Update localStorage when viewMode changes
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+  }, [viewMode]);
+  
+  // Reset to cards view when no cities
   useEffect(() => {
     if (cities.length === 0) {
       setViewMode('cards');
@@ -415,9 +428,10 @@ export default function Home() {
   function CityTimeWeatherCard({ city, onRemove }) {
     if (!city || !city.timezone) return null;
     
-    const handleCardClick = (e) => {
-      e.stopPropagation();
-      setViewMode('comparison'); // Switch to comparison view when a city is clicked
+    const handleCardClick = () => {
+      if (cities.length > 0) {
+        setViewMode('comparison');
+      }
     };
     
     const handleRemoveClick = (e) => {
@@ -468,6 +482,13 @@ export default function Home() {
       <div
         className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow duration-200"
         onClick={handleCardClick}
+        role="button"
+        tabIndex={0}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            handleCardClick();
+          }
+        }}
       >
         <div className="flex justify-between items-start">
           <div className="flex-1">
