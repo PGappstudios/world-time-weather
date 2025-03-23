@@ -311,6 +311,9 @@ export default function Home() {
   const [availableTimezones, setAvailableTimezones] = useState([]);
   const [viewMode, setViewMode] = useState('cards');
   
+  // Add loading states for individual cities
+  const [loadingCities, setLoadingCities] = useState(new Set());
+  
   // Handle view mode changes
   const handleViewModeChange = (mode) => {
     if (mode === 'comparison' && cities.length === 0) {
@@ -365,6 +368,7 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
   
+  // Debounced city addition
   async function addCity(cityName) {
     // Reset error state
     setError(null);
@@ -383,40 +387,73 @@ export default function Home() {
       return;
     }
     
-    setLoading(true);
+    // Add to loading state
+    setLoadingCities(prev => new Set([...prev, cityName]));
     
     try {
-      // Get timezone data using the new utility
-      const timezoneData = await getTimezoneData(cityName);
+      // Fetch timezone and weather data in parallel
+      const [timezoneData, weatherData] = await Promise.all([
+        getTimezoneData(cityName),
+        getWeather(timezoneData?.latitude || 0, timezoneData?.longitude || 0).catch(() => null)
+      ]);
       
-      // Get weather data using the coordinates
-      let weatherData = null;
-      try {
-        weatherData = await getWeather(
-          timezoneData.latitude, 
-          timezoneData.longitude
-        );
-      } catch (weatherError) {
-        console.error("Weather data fetch failed:", weatherError);
-        // Continue without weather data
-      }
-      
-      // Add the new city to the list
+      // Add the new city to the list immediately
       setCities(prev => [
         ...prev, 
         { 
-          name: cityName, // Use the full name including country
-          timezone: timezoneData, 
-          weather: weatherData 
+          name: cityName,
+          timezone: timezoneData,
+          weather: weatherData
         }
       ]);
+      
+      // Save to localStorage immediately
+      const updatedCities = [...cities, { name: cityName, timezone: timezoneData, weather: weatherData }];
+      localStorage.setItem('cities', JSON.stringify(updatedCities));
+      
     } catch (err) {
       console.error("Failed to add city:", err);
       setError(err.message || "Failed to add city. Please try again.");
     } finally {
-      setLoading(false);
+      setLoadingCities(prev => {
+        const next = new Set(prev);
+        next.delete(cityName);
+        return next;
+      });
     }
   }
+  
+  // Load saved cities on mount with optimized loading
+  useEffect(() => {
+    const loadSavedCities = async () => {
+      const savedCities = JSON.parse(localStorage.getItem('cities') || '[]');
+      if (savedCities.length === 0) return;
+      
+      // Load all cities in parallel
+      const cityPromises = savedCities.map(async (city) => {
+        try {
+          const [timezoneData, weatherData] = await Promise.all([
+            getTimezoneData(city.name),
+            getWeather(city.timezone?.latitude || 0, city.timezone?.longitude || 0).catch(() => null)
+          ]);
+          
+          return {
+            name: city.name,
+            timezone: timezoneData,
+            weather: weatherData
+          };
+        } catch (error) {
+          console.error(`Failed to load city ${city.name}:`, error);
+          return null;
+        }
+      });
+      
+      const loadedCities = await Promise.all(cityPromises);
+      setCities(loadedCities.filter(Boolean));
+    };
+    
+    loadSavedCities();
+  }, []);
   
   // Function to remove a city from the list
   function removeCity(index, newCities) {
