@@ -304,118 +304,6 @@ const getFlagEmoji = (countryCode) => {
   return String.fromCodePoint(...codePoints);
 };
 
-// Compact City Card component with time and weather
-function CityTimeWeatherCard({ city, onRemove, handleViewModeChange }) {
-  if (!city || !city.timezone) return null;
-  
-  const handleCardClick = () => {
-    if (handleViewModeChange) {
-      handleViewModeChange('comparison');
-    }
-  };
-  
-  const handleRemoveClick = (e) => {
-    e.stopPropagation();
-    onRemove();
-  };
-  
-  const localTime = moment().tz(city.timezone.timezone);
-  const timezonePath = city.timezone.timezone.split('/');
-  const region = timezonePath[0];
-  const location = timezonePath[timezonePath.length - 1].replace('_', ' ');
-  
-  // Get weather data
-  const currentWeather = city.weather?.current_weather || {};
-  const daily = city.weather?.daily || {};
-  const hourly = city.weather?.hourly || {};
-  
-  // Get current hour and weather data
-  const currentHour = new Date().getHours();
-  const safeIndex = Math.min(currentHour, (hourly.temperature_2m || []).length - 1);
-  
-  // Get temperature
-  const temperature = hourly.temperature_2m || [];
-  const currentTemp = temperature[safeIndex] !== undefined 
-    ? temperature[safeIndex] 
-    : (currentWeather.temperature || 'N/A');
-  
-  // Get min/max temps
-  const minTemp = daily.temperature_2m_min ? daily.temperature_2m_min[0] : null;
-  const maxTemp = daily.temperature_2m_max ? daily.temperature_2m_max[0] : null;
-  
-  // Get appropriate weather icon component based on weather code
-  const getWeatherIcon = (code) => {
-    if (code >= 0 && code <= 1) return <FaSun size={28} className="text-yellow-500" />;
-    if (code >= 2 && code <= 3) return <FaCloud size={28} className="text-gray-500" />;
-    if (code >= 4 && code <= 9) return <FaCloud size={28} className="text-gray-400" />;
-    if (code >= 10 && code <= 99) return <FaCloudRain size={28} className="text-blue-500" />;
-    return <FaCloud size={28} className="text-gray-500" />;
-  };
-  
-  const weatherIcon = getWeatherIcon(
-    hourly.weathercode?.[safeIndex] !== undefined 
-      ? hourly.weathercode[safeIndex] 
-      : currentWeather.weathercode
-  );
-  
-  return (
-    <div
-      className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow duration-200"
-      onClick={handleCardClick}
-      role="button"
-      tabIndex={0}
-      onKeyPress={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          handleCardClick();
-        }
-      }}
-    >
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-800">{city.name}</h3>
-          <p className="text-4xl font-bold mb-1 text-gray-800">{localTime.format('HH:mm:ss')}</p>
-          <p className="text-gray-500">{localTime.format('MMMM D, YYYY')}</p>
-          <div className="flex items-center mt-1">
-            <FaMapMarkerAlt className="text-gray-400 text-xs mr-1" />
-            <p className="text-xs text-gray-400">{region}/{location}</p>
-          </div>
-          {city.weather && (
-            <div className="flex justify-between items-center mt-4 pt-4 border-t">
-              <div className="flex items-center">
-                <div className="mr-3 bg-blue-50 p-2 rounded-full">
-                  {weatherIcon}
-                </div>
-                <div>
-                  <span className="text-2xl font-bold text-gray-800">
-                    {typeof currentTemp === 'number' ? `${currentTemp.toFixed(1)}°C` : 'N/A'}
-                  </span>
-                  {minTemp !== null && maxTemp !== null && (
-                    <div className="text-xs text-gray-500 flex gap-2">
-                      <span className="inline-flex items-center">
-                        <span className="text-blue-500 mr-1">▼</span> {minTemp.toFixed(1)}°C
-                      </span>
-                      <span className="inline-flex items-center">
-                        <span className="text-red-500 mr-1">▲</span> {maxTemp.toFixed(1)}°C
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={handleRemoveClick}
-          className="text-gray-400 hover:text-red-500 transition-colors duration-200"
-          aria-label="Remove city"
-        >
-          <FaTimes />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function Home() {
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -435,12 +323,15 @@ export default function Home() {
   // Load saved view mode on mount
   useEffect(() => {
     const savedViewMode = localStorage.getItem('viewMode');
-    if (savedViewMode && (savedViewMode === 'cards' || (savedViewMode === 'comparison' && cities.length > 0))) {
-      setViewMode(savedViewMode);
-    } else {
-      setViewMode('cards'); // Default to cards view
+    if (savedViewMode) {
+      if (savedViewMode === 'comparison' && cities.length === 0) {
+        setViewMode('cards');
+        localStorage.setItem('viewMode', 'cards');
+      } else {
+        setViewMode(savedViewMode);
+      }
     }
-  }, []);
+  }, [cities.length]);
 
   // Reset to cards view when all cities are removed
   useEffect(() => {
@@ -499,10 +390,16 @@ export default function Home() {
       const timezoneData = await getTimezoneData(cityName);
       
       // Get weather data using the coordinates
-      const weatherData = await getWeather(
-        timezoneData.latitude, 
-        timezoneData.longitude
-      );
+      let weatherData = null;
+      try {
+        weatherData = await getWeather(
+          timezoneData.latitude, 
+          timezoneData.longitude
+        );
+      } catch (weatherError) {
+        console.error("Weather data fetch failed:", weatherError);
+        // Continue without weather data
+      }
       
       // Add the new city to the list
       setCities(prev => [
@@ -514,7 +411,8 @@ export default function Home() {
         }
       ]);
     } catch (err) {
-      setError(err.message);
+      console.error("Failed to add city:", err);
+      setError(err.message || "Failed to add city. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -533,20 +431,125 @@ export default function Home() {
   }
   
   // Function to render compact city cards with time and weather
-  const renderCompactCityCards = () => {
+  function renderCompactCityCards() {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
         {cities.map((city, index) => (
-          <CityTimeWeatherCard 
-            key={index} 
-            city={city} 
-            onRemove={() => removeCity(index)} 
-            handleViewModeChange={handleViewModeChange}
-          />
+          <CityTimeWeatherCard key={index} city={city} onRemove={() => removeCity(index)} />
         ))}
       </div>
     );
-  };
+  }
+  
+  // Compact City Card component with time and weather
+  function CityTimeWeatherCard({ city, onRemove }) {
+    if (!city || !city.timezone) return null;
+    
+    const handleCardClick = () => {
+      handleViewModeChange('comparison');
+    };
+    
+    const handleRemoveClick = (e) => {
+      e.stopPropagation();
+      onRemove();
+    };
+    
+    const localTime = moment().tz(city.timezone.timezone);
+    const timezonePath = city.timezone.timezone.split('/');
+    const region = timezonePath[0];
+    const location = timezonePath[timezonePath.length - 1].replace('_', ' ');
+    
+    // Get weather data
+    const currentWeather = city.weather?.current_weather || {};
+    const daily = city.weather?.daily || {};
+    const hourly = city.weather?.hourly || {};
+    
+    // Get current hour and weather data
+    const currentHour = new Date().getHours();
+    const safeIndex = Math.min(currentHour, (hourly.temperature_2m || []).length - 1);
+    
+    // Get temperature
+    const temperature = hourly.temperature_2m || [];
+    const currentTemp = temperature[safeIndex] !== undefined 
+      ? temperature[safeIndex] 
+      : (currentWeather.temperature || 'N/A');
+    
+    // Get min/max temps
+    const minTemp = daily.temperature_2m_min ? daily.temperature_2m_min[0] : null;
+    const maxTemp = daily.temperature_2m_max ? daily.temperature_2m_max[0] : null;
+    
+    // Get appropriate weather icon component based on weather code
+    const getWeatherIcon = (code) => {
+      if (code >= 0 && code <= 1) return <FaSun size={28} className="text-yellow-500" />;
+      if (code >= 2 && code <= 3) return <FaCloud size={28} className="text-gray-500" />;
+      if (code >= 4 && code <= 9) return <FaCloud size={28} className="text-gray-400" />;
+      if (code >= 10 && code <= 99) return <FaCloudRain size={28} className="text-blue-500" />;
+      return <FaCloud size={28} className="text-gray-500" />;
+    };
+    
+    const weatherIcon = getWeatherIcon(
+      hourly.weathercode?.[safeIndex] !== undefined 
+        ? hourly.weathercode[safeIndex] 
+        : currentWeather.weathercode
+    );
+    
+    return (
+      <div
+        className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow duration-200"
+        onClick={handleCardClick}
+        role="button"
+        tabIndex={0}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            handleCardClick();
+          }
+        }}
+      >
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-gray-800">{city.name}</h3>
+            <p className="text-4xl font-bold mb-1 text-gray-800">{localTime.format('HH:mm:ss')}</p>
+            <p className="text-gray-500">{localTime.format('MMMM D, YYYY')}</p>
+            <div className="flex items-center mt-1">
+              <FaMapMarkerAlt className="text-gray-400 text-xs mr-1" />
+              <p className="text-xs text-gray-400">{region}/{location}</p>
+            </div>
+            {city.weather && (
+              <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                <div className="flex items-center">
+                  <div className="mr-3 bg-blue-50 p-2 rounded-full">
+                    {weatherIcon}
+                  </div>
+                  <div>
+                    <span className="text-2xl font-bold text-gray-800">
+                      {typeof currentTemp === 'number' ? `${currentTemp.toFixed(1)}°C` : 'N/A'}
+                    </span>
+                    {minTemp !== null && maxTemp !== null && (
+                      <div className="text-xs text-gray-500 flex gap-2">
+                        <span className="inline-flex items-center">
+                          <span className="text-blue-500 mr-1">▼</span> {minTemp.toFixed(1)}°C
+                        </span>
+                        <span className="inline-flex items-center">
+                          <span className="text-red-500 mr-1">▲</span> {maxTemp.toFixed(1)}°C
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleRemoveClick}
+            className="text-gray-400 hover:text-red-500 transition-colors duration-200"
+            aria-label="Remove city"
+          >
+            <FaTimes />
+          </button>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -628,7 +631,7 @@ export default function Home() {
                   viewMode === 'comparison'
                     ? 'bg-blue-600 text-white border-blue-600 shadow-md'
                     : cities.length === 0
-                    ? 'bg-white text-gray-400 border-gray-300 cursor-not-allowed'
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
                 }`}
               >
