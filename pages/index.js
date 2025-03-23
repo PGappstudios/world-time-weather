@@ -621,7 +621,7 @@ export default function Home() {
                   viewMode === 'comparison'
                     ? 'bg-blue-600 text-white border-blue-600 shadow-md'
                     : cities.length === 0
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    ? 'bg-white text-gray-400 border-gray-300 cursor-not-allowed'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
                 }`}
               >
