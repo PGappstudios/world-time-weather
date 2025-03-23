@@ -309,7 +309,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [availableTimezones, setAvailableTimezones] = useState([]);
-  const [viewMode, setViewMode] = useState('comparison'); // Default to comparison view
+  const [viewMode, setViewMode] = useState('cards'); // Start with cards view
+  
+  // Add a useEffect to persist viewMode changes
+  useEffect(() => {
+    if (cities.length === 0) {
+      setViewMode('cards');
+    }
+  }, [cities]);
   
   // Load available timezones on initial load
   useEffect(() => {
@@ -409,8 +416,8 @@ export default function Home() {
     if (!city || !city.timezone) return null;
     
     const handleCardClick = (e) => {
-      // Prevent event propagation
       e.stopPropagation();
+      setViewMode('comparison'); // Switch to comparison view when a city is clicked
     };
     
     const handleRemoveClick = (e) => {
@@ -458,57 +465,52 @@ export default function Home() {
     );
     
     return (
-      <div 
-        className="p-5 border rounded-xl shadow-md bg-white relative group hover:shadow-lg transition-all duration-300 overflow-hidden"
+      <div
+        className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow duration-200"
         onClick={handleCardClick}
       >
-        {/* Background gradient for visual appeal */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-bl-3xl opacity-50 -z-10"></div>
-        
-        <button
-          onClick={handleRemoveClick}
-          className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-          aria-label={`Remove ${city.name}`}
-        >
-          <FaTimes />
-        </button>
-        
-        <div className="mb-3">
-          <h3 className="font-bold text-xl">{city.name}</h3>
-        </div>
-        
-        <p className="text-4xl font-bold mb-1 text-gray-800">{localTime.format('HH:mm:ss')}</p>
-        <p className="text-gray-500">{localTime.format('MMMM D, YYYY')}</p>
-        
-        <div className="flex items-center mt-1">
-          <FaMapMarkerAlt className="text-gray-400 text-xs mr-1" />
-          <p className="text-xs text-gray-400">{region}/{location}</p>
-        </div>
-        
-        {city.weather && (
-          <div className="flex justify-between items-center mt-4 pt-4 border-t">
-            <div className="flex items-center">
-              <div className="mr-3 bg-blue-50 p-2 rounded-full">
-                {weatherIcon}
-              </div>
-              <div>
-                <span className="text-2xl font-bold text-gray-800">
-                  {typeof currentTemp === 'number' ? `${currentTemp.toFixed(1)}°C` : 'N/A'}
-                </span>
-                {minTemp !== null && maxTemp !== null && (
-                  <div className="text-xs text-gray-500 flex gap-2">
-                    <span className="inline-flex items-center">
-                      <span className="text-blue-500 mr-1">▼</span> {minTemp.toFixed(1)}°C
-                    </span>
-                    <span className="inline-flex items-center">
-                      <span className="text-red-500 mr-1">▲</span> {maxTemp.toFixed(1)}°C
-                    </span>
-                  </div>
-                )}
-              </div>
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-gray-800">{city.name}</h3>
+            <p className="text-4xl font-bold mb-1 text-gray-800">{localTime.format('HH:mm:ss')}</p>
+            <p className="text-gray-500">{localTime.format('MMMM D, YYYY')}</p>
+            <div className="flex items-center mt-1">
+              <FaMapMarkerAlt className="text-gray-400 text-xs mr-1" />
+              <p className="text-xs text-gray-400">{region}/{location}</p>
             </div>
+            {city.weather && (
+              <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                <div className="flex items-center">
+                  <div className="mr-3 bg-blue-50 p-2 rounded-full">
+                    {weatherIcon}
+                  </div>
+                  <div>
+                    <span className="text-2xl font-bold text-gray-800">
+                      {typeof currentTemp === 'number' ? `${currentTemp.toFixed(1)}°C` : 'N/A'}
+                    </span>
+                    {minTemp !== null && maxTemp !== null && (
+                      <div className="text-xs text-gray-500 flex gap-2">
+                        <span className="inline-flex items-center">
+                          <span className="text-blue-500 mr-1">▼</span> {minTemp.toFixed(1)}°C
+                        </span>
+                        <span className="inline-flex items-center">
+                          <span className="text-red-500 mr-1">▲</span> {maxTemp.toFixed(1)}°C
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          <button
+            onClick={handleRemoveClick}
+            className="text-gray-400 hover:text-red-500 transition-colors duration-200"
+            aria-label="Remove city"
+          >
+            <FaTimes />
+          </button>
+        </div>
       </div>
     );
   }
